@@ -346,7 +346,7 @@ layers:
   - BT CLR ALL
   mouse_mac:
   - ESC
-  - {t: ▽, type: trans}
+  - TAB
   - Sft+Gui+5
   - Sft+Gui+4
   - Sft+Gui+3
@@ -389,7 +389,7 @@ layers:
   - {t: ▽, type: trans}
   mouse_win:
   - ESC
-  - {t: ▽, type: trans}
+  - Gui+TAB
   - {t: ▽, type: trans}
   - {t: ▽, type: trans}
   - DEL
@@ -425,10 +425,10 @@ layers:
   - {t: ▽, type: trans}
   - {t: ▽, type: trans}
   - LALT
+  - {t: ▽, type: trans}
   - Ctl+Z
   - Ctl+C
   - Ctl+V
-  - {t: ▽, type: trans}
   - {t: ▽, type: trans}
   '10':
   - {t: ▽, type: trans}
