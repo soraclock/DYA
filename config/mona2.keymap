@@ -67,18 +67,21 @@
             display-name = "IME_MACRO";
         };
 
+        /* Win/Mac のレイヤー切替は zmk-feature-default-layer（OS 検出）に任せるので、
+           プロファイルの選択だけを行う。ノード名は Studio に保存済みのキーマップとの
+           互換のため旧名 (bt_win / bt_mac) のまま */
         bt_win: bt_win {
             compatible = "zmk,behavior-macro";
             #binding-cells = <0>;
-            bindings = <&bt BT_SEL 0>, <&to 0>;
-            display-name = "BT_WIN";
+            bindings = <&bt BT_SEL 0>;
+            display-name = "BT_0";
         };
 
         bt_mac: bt_mac {
             compatible = "zmk,behavior-macro";
             #binding-cells = <0>;
-            bindings = <&bt BT_SEL 1>, <&to 0>, <&tog MAC_BASE>;
-            display-name = "BT_MAC";
+            bindings = <&bt BT_SEL 1>;
+            display-name = "BT_1";
         };
     };
 
