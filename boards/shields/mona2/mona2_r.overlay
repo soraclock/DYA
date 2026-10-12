@@ -1,8 +1,6 @@
 #include "mona2.dtsi"
-/* mona2.dtsi 内で RC(row,col) のマトリクス展開が終わった後に include する
-   (runtime-input-processor.dtsi が modifiers.h 経由で RC(keycode) を再定義するため) */
+/* mona2.dtsi の RC(row,col) 展開が終わった後に include する（mona2.dtsi の NOTE 参照） */
 #include <input/processors/runtime-input-processor.dtsi>
-#include <input/processors.dtsi>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
 &default_transform {
@@ -46,71 +44,72 @@
     pinctrl-names = "default", "sleep";
     cs-gpios = <&gpio0 9 GPIO_ACTIVE_LOW>;
 
+    /* DYA Studio の Trackball / 診断タブに対応した cormoran 版 PMW3610 ドライバー */
     trackball_central: trackball_central@0 {
         status = "okay";
-#ifdef CONFIG_TRACKBALL_PAW3222
-        compatible = "pixart,paw3222";
-        reg = <0>;
-        spi-max-frequency = <2000000>;
-        irq-gpios = <&gpio0 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-#else /* default: PMW3610 */
-        compatible = "pixart,pmw3610";
+        compatible = "cormoran,pmw3610";
         reg = <0>;
         spi-max-frequency = <2000000>;
         irq-gpios = <&gpio0 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
         cpi = <600>;
-        //swap-xy;
-        invert-x;       //COROPIT版ではコメントアウトを外す
-        //invert-y;     //この個体ではY軸は反転不要だったためコメントアウト
         evt-type = <INPUT_EV_REL>;
         x-input-code = <INPUT_REL_X>;
         y-input-code = <INPUT_REL_Y>;
-#endif
+        settings-id = "trackball";
     };
 };
 
-/* ─────────────────────────────────────────────────────────────
-   scroll_runtime_input_processor をスクロール変換器として上書き
-
-   デフォルトでは x-codes=HWHEEL / y-codes=WHEEL で
-   「すでにスクロールイベントになっているもの」しか処理しない設定。
-   トラックボールの生イベント(REL_X/Y) を受け取って
-   xy-to-scroll-enabled でスクロールに変換する形に切替える。
-
-   ・active-layers : デフォルトのスクロールレイヤー bitmask
-                     bit10=SCROLL → 0x00000400
-                     DYA Studio から変更可能(再ビルド不要)
-   ・xy-to-scroll-enabled : REL_X→HWHEEL, REL_Y→WHEEL に変換
-                            こちらも Studio から ON/OFF 可能
-   ────────────────────────────────────────────────────── */
+/* 実機で DYA Studio から保存されていたスクロール用プロセッサーの値を初期値として固定する
+   (scale 1/21、X/Y 反転、Layer 10 のみ有効) */
 &scroll_runtime_input_processor {
-    x-codes = <INPUT_REL_X>;
-    y-codes = <INPUT_REL_Y>;
-    xy-to-scroll-enabled;
-    active-layers = <0x00000400>;  /* layer10 */
     scale-multiplier = <1>;
-    scale-divisor = <1>;            /* スクロール速度。大きいほど遅い。Studioで調整可 */
-    /* 軸ロック(縦のみ等)が欲しければ AXIS_SNAP_MODE_Y を初期値に */
-    /* #include <dt-bindings/zmk/runtime_input_processor.h> 必要 */
-    /* axis-snap-mode = <2>; */
-    /* axis-snap-threshold = <100>; */
+    scale-divisor = <21>;
+    x-invert;
+    y-invert;
+    active-layers = <0x00000400>;
 };
 
-/* マウス用は全レイヤーで有効 (active-layers = 0 がデフォルト) */
-&mouse_runtime_input_processor {
-    /* 例: マウス感度初期値を Studio から調整したいだけならここで触らなくてOK */
-};
-
-/* ─────────────────────────────────────────────────────────────
-   入力リスナー
-   メインチェーンに mouse → scroll の順で2段。
-   ・mouse は全レイヤーで走る(scale/invert を適用)
-   ・scroll は active-layers のレイヤーでのみ走る
-     → 該当レイヤー以外では素通しでマウスとして動作
-   scroller {} 子ノードは使わない(レイヤー固定になるため)
-   ────────────────────────────────────────────────────── */
 &trackball_central_listener {
     status = "okay";
     device = <&trackball_central>;
-    input-processors = <&mouse_runtime_input_processor &scroll_runtime_input_processor>;
+    input-processors =
+        <&zip_xy_transform INPUT_TRANSFORM_Y_INVERT>,
+        <&mouse_runtime_input_processor>;
+
+    scroller {
+        layers = <10>;
+        input-processors =
+            <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>,
+            <&zip_xy_to_scroll_mapper>,
+            <&zip_scroll_transform INPUT_TRANSFORM_X_INVERT>,
+            <&zip_scroll_scaler 1 1>,
+            <&scroll_runtime_input_processor>;
+    };
+};
+
+/* DYA Studio のキーマップ プレビューにトラックボールとエンコーダーを表示する
+   (見た目のみ。座標はキーの physical layout と同じ単位) */
+/ {
+    trackball_layout: trackball_layout {
+        compatible = "cormoran,physical-layout-trackball";
+        display-name = "Trackball";
+        size = <180>;
+        x = <910>;
+        y = <300>;
+        linked-device-identifiers = "mouse", "scroll";
+        linked-subsystems = "cormoran_rip", "cormoran_rip";
+    };
+
+    rotary_encoders_layout: rotary_encoders_layout {
+        compatible = "cormoran,physical-layout-rotary-encoders";
+        display-name = "Rotary Encoder";
+        encoders = <&encoder_left_layout>;
+    };
+
+    encoder_left_layout: encoder_left_layout {
+        compatible = "cormoran,physical-layout-rotary-encoder";
+        size = <80>;
+        x = <510>;
+        y = <10>;
+    };
 };

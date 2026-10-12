@@ -1,84 +1,61 @@
-# moNa2 v2 (DYA Studio 対応版)
+# moNa2（右手トラックボール）DYA Studio 対応ファームウェア
 
-このリポジトリは [moNa2 v2](https://github.com/sayu-hub/zmk-config-moNa2) 用 ZMK Config を、[cormoran](https://github.com/cormoran) さんが公開している **[DYA Studio](https://studio.dya.cormoran.works/)** に対応させたものです。
+[DYA Studio](https://studio.dya.cormoran.works/) の全タブ（キーマップ / マクロ&コンボ / トラックボール / 接続 / 設定 / 診断）に対応させた moNa2 用 ZMK config です。
 
-DYA Studio は ZMK Studio をベースに、
+- ZMK: `cormoran/zmk` の `main+dya`（Zephyr 4.1）
+- ベース: 実機で使っていた `soraclock/DYA` の c5a8298（2026-04-18）のビルド
+- キーマップ・エンコーダー・トラックボールの値は、2026-10-12 に DYA Studio で実機から読み出した値と同じにしてある（Studio 上で変更・保存していた分も含む）
 
-- キーマップ／レイヤーの GUI 編集
-- トラックボール (PMW3610) のスクロール量・軸反転・自動マウスレイヤーなど **Runtime Input Processor 経由での動的設定**
-- バッテリー情報の確認
-- BLE プロファイル管理 / Settings RPC
+## 旧ファームからの変更点
 
-を Web から行えるようにした拡張版です。
+| 項目 | 旧（c5a8298） | 新 |
+| --- | --- | --- |
+| ZMK | `cormoran/zmk v0.3-branch+dya`（Zephyr 3.5） | `cormoran/zmk main+dya`（Zephyr 4.1） |
+| ボード名 | `seeeduino_xiao_ble` | `xiao_ble//zmk` |
+| NFC ピンの GPIO 化 | `CONFIG_NFCT_PINS_AS_GPIOS` | `&uicr { nfct-pins-as-gpios; }`（Zephyr 4.1 で Kconfig が廃止） |
+| PMW3610 ドライバー | `badjeff/zmk-pmw3610-driver` | `cormoran/zmk-driver-pmw3610-with-custom-studio-rpc`（既定値は同じ。CPI 600） |
+| コンボ | `zmk,combos` | 同じ `zmk,combos`（Studio のコンボ一覧には出ない。Studio で追加したコンボは runtime combo として別枠で動く） |
+| Battery History | 有効 | 無効（DYA Studio に画面がなく、DYA2 でも保存が遅い問題のため無効化されている） |
+| 追加モジュール | — | custom-settings, fast-keymap, runtime-macro, runtime-combo, input-stream, physical-layout, default-layer, os-detection, device-info, watchdog, kscan-diagnostics |
 
-## DYA Studio の使い方
+### Studio で変更されていた値を keymap / overlay に固定したもの
 
-1. 本リポジトリをビルドし、生成された `mona2_r-...uf2`（中央側＝右手）と `mona2_l-...uf2`（周辺側＝左手）をそれぞれの XIAO BLE に書き込みます。
-2. 中央側（右手）を **USB ケーブル** で PC に接続します。
-3. Chrome / Edge などの WebUSB 対応ブラウザで **[https://studio.dya.cormoran.works/](https://studio.dya.cormoran.works/)** を開きます。
-4. キーボード側で `BLE` レイヤー(Layer 7)を有効にし、左上に配置した **`&studio_unlock`** キーを押してアンロック。
-5. DYA Studio 側で「Connect」を押し、USB デバイスとして mona2 を選択。
-6. キーマップ／トラックボール設定を編集できます。
+- Layer 0 / 3 のエンコーダー: スクロール量 ±100（他のレイヤーは ±30）
+- Layer 8（mouse_mac）の位置 1: `&kp TAB`
+- Layer 9（mouse_win）の位置 1: `&kp LG(TAB)`、最下段の `LC(Z)` / `LC(C)` / `LC(V)` を 1 つ右へ
+- スクロール用プロセッサー（Layer 10）: 倍率 1/21、X/Y 反転
 
-### このリポジトリで対応済みの内容
+### 意図して入れていない・使わないもの
 
-| 対応項目 | ファイル / 箇所 |
+- **コンボの runtime combo 化**: `cormoran,runtime-combo-defaults` に移すと Studio で編集できるが、別コンボの途中で押したキーをコンボの先頭として再判定しない（ZMK 標準は再判定する）ため、旧ファームと挙動が変わる。そのため標準の `zmk,combos` のままにしている。
+- **接続先・OS ごとのデフォルトレイヤー**: モジュールは入っており「接続」タブも表示されるが、初期状態（未設定）では何もしない。`BT_WIN` / `BT_MAC` マクロでの手動 Win/Mac 切替と混ざるため、Studio でレイヤーを割り当てる場合はマクロの運用を見直すこと（`MAX_INDEX=0` なので、接続先が変わっても Layer 3 は外れない）。
+- **zmk-module-devtool**（診断タブの「スタック使用量」）: Studio のロック解除・再起動を認証なしの RPC で実行できるため、作者が製品ファームでは無効にするよう明記している。このため「スタック使用量」だけは未対応表示のまま。
+
+## ビルド
+
+GitHub Actions（`.github/workflows/build.yml`）で `build.yaml` の 3 つを生成します。
+
+| ファイル | 書き込み先 |
 | --- | --- |
-| ZMK 本体を cormoran さんの fork (`v0.3-branch+dya`) に切替 | `config/west.yml` |
-| DYA Studio モジュールを west.yml に追加 (ble-management / settings-rpc / runtime-input-processor / runtime-sensor-rotate) | `config/west.yml` |
-| Studio 系 CONFIG (`CONFIG_ZMK_STUDIO`, `CONFIG_ZMK_BLE_MANAGEMENT`, `CONFIG_ZMK_SETTINGS_RPC`, `CONFIG_ZMK_RUNTIME_INPUT_PROCESSOR`, `CONFIG_ZMK_RUNTIME_INPUT_PROCESSOR_STUDIO_RPC`) | `config/mona2_r.conf` |
-| トラックボール処理を Runtime Input Processor に置換 | `boards/shields/mona2/mona2.dtsi`, `mona2_r.overlay` |
-| `&studio_unlock` を `bt_layer` (Layer 7) 左上に配置 | `config/mona2.keymap` |
-| スクリーンショットの Layer 0-10 に合わせて keymap を設定 | `config/mona2.keymap` |
-| `studio-rpc-usb-uart` snippet (中央側) | `build.yaml` |
+| `mona2_r` | 右手（central・PC と接続する側） |
+| `mona2_l` | 左手（peripheral） |
+| `settings_reset` | 左右どちらにも使う設定消去用 |
 
-> **Note:**
-> - DYA Studio で行った変更は **中央側 (右手) の Flash** に保存されます。初期化したい場合は `settings_reset` ファームウェアを書き込んでください。
-> - **`v0.3-branch+dya` / 各 DYA module の revision・CONFIG 名は調査ベースの値**です。ビルドが通らない場合は、おぐ さんの記事 [DYA Studioを導入してみるぞ！moNa2編](https://note.com/heace/n/nf06b797ffa79) を参照して、各 revision/CONFIG 名を最新版に合わせてください。
+ローカルでは Docker（`zmkfirmware/zmk-build-arm:stable`）で次のようにビルドできます。
 
----
-
-## トラックボール (COROPIT) を使用する場合
-
-COROPITを使用する方は以下のようにコードを編集してください。
-
-mona2_r.overlay
-
-修正前
+```bash
+west init -l config && west update --narrow && west zephyr-export
+west build -s zmk/app -b xiao_ble//zmk -S studio-rpc-usb-uart -- \
+  -DSHIELD="mona2_r rgbled_adapter" -DZMK_CONFIG=$PWD/config -DZMK_EXTRA_MODULES=$PWD
 ```
-  trackball_central: trackball_central@0 {
-        status = "okay";
-        compatible = "pixart,pmw3610";  //トラボセンサ用のドライバとバインド
-        reg = <0>;
-        spi-max-frequency = <2000000>;
-        irq-gpios = <&gpio0 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; //P0.02を指定(MOTION)
-        cpi = <600>;
-        //swap-xy;
-        //invert-x; //COROPIT版ではコメントアウトを外す
-        //invert-y; //COROPIT版ではコメントアウトを外す
-        evt-type = <INPUT_EV_REL>;
-        x-input-code = <INPUT_REL_X>;
-        y-input-code = <INPUT_REL_Y>;
-    };
-};
 
-```
-**修正後**
-```
-  trackball_central: trackball_central@0 {
-        status = "okay";
-        compatible = "pixart,pmw3610";  //トラボセンサ用のドライバとバインド
-        reg = <0>;
-        spi-max-frequency = <2000000>;
-        irq-gpios = <&gpio0 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; //P0.02を指定(MOTION)
-        cpi = <600>;
-        //swap-xy;
-        invert-x; //COROPIT版ではコメントアウトを外す
-        invert-y; //COROPIT版ではコメントアウトを外す
-        evt-type = <INPUT_EV_REL>;
-        x-input-code = <INPUT_REL_X>;
-        y-input-code = <INPUT_REL_Y>;
-    };
-};
+## 書き込み手順
 
-```
+ZMK のメジャー更新（Zephyr 3.5 → 4.1）と、設定の保存形式が変わるモジュール更新を含むため、**左右とも設定を消去してから**書き込んでください。キーマップ等はファームに焼き込み済みなので、消去しても内容は変わりません。
+
+1. 右手の XIAO をリセット 2 回押しでブートローダーにし、`settings_reset.uf2` をコピーする
+2. 左手も同じく `settings_reset.uf2` をコピーする
+3. 右手に `mona2_r.uf2`、左手に `mona2_l.uf2` をコピーする
+4. 左右を同時にリセットして左右をペアリングし直す
+5. PC / Mac の Bluetooth 設定から旧 `mona2` を削除し、ペアリングし直す（プロファイル 0 = Windows、1 = Mac）
+6. DYA Studio で接続し、各タブが「未対応」と出ないことを確認する
